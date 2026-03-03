@@ -25,7 +25,7 @@
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             padding: 30px;
             width: 100%;
-            max-width: 800px;
+            max-width: 900px;
         }
         h1 {
             color: #333;
@@ -42,9 +42,14 @@
             color: #555;
             font-weight: 500;
         }
+        .label-hint {
+            font-size: 12px;
+            color: #888;
+            font-weight: normal;
+        }
         textarea {
             width: 100%;
-            min-height: 150px;
+            min-height: 120px;
             padding: 12px;
             border: 2px solid #e0e0e0;
             border-radius: 8px;
@@ -58,8 +63,39 @@
             border-color: #667eea;
         }
         #output {
-            background: #f5f5f5;
-            min-height: 100px;
+            background: #f0f9ff;
+            min-height: 80px;
+        }
+        .validation {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-size: 12px;
+        }
+        .validation-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .validation-row:last-child {
+            margin-bottom: 0;
+        }
+        .validation-label {
+            width: 80px;
+            flex-shrink: 0;
+            color: #666;
+            font-weight: 500;
+        }
+        .validation-value {
+            flex: 1;
+            word-break: break-all;
+            font-family: "Monaco", "Menlo", "Consolas", monospace;
+        }
+        .validation-value.success {
+            color: #28a745;
+        }
+        .validation-value.fail {
+            color: #dc3545;
         }
         .btn-group {
             display: flex;
@@ -107,6 +143,23 @@
         .toast.show {
             opacity: 1;
         }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -114,8 +167,12 @@
         <h1>命令单行化工具</h1>
 
         <div class="input-group">
-            <label for="input">输入多行或截断的命令:</label>
-            <textarea id="input" placeholder="粘贴你的多行命令在这里..."></textarea>
+            <label for="input">输入多行或截断的命令: <span class="label-hint">支持 \ (bash) 和 ` (PowerShell) 换行符</span></label>
+            <textarea id="input" placeholder="粘贴你的多行命令在这里...
+示例:
+  & command `
+    --arg1 value1 `
+    --arg2 value2"></textarea>
         </div>
 
         <div class="btn-group">
@@ -123,9 +180,47 @@
             <button class="btn-secondary" onclick="clearAll()">清空</button>
         </div>
 
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-value" id="linesRemoved">0</div>
+                <div class="stat-label">移除换行</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="spacesReduced">0</div>
+                <div class="stat-label">空格压缩</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="originalLength">0</div>
+                <div class="stat-label">原始长度</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="finalLength">0</div>
+                <div class="stat-label">结果长度</div>
+            </div>
+        </div>
+
         <div class="input-group">
             <label for="output">输出结果 (已复制到剪贴板):</label>
             <textarea id="output" readonly placeholder="点击按钮后，结果会显示在这里并自动复制..."></textarea>
+        </div>
+
+        <div class="validation" id="validation" style="display: none;">
+            <div class="validation-row">
+                <span class="validation-label">换行检测:</span>
+                <span class="validation-value" id="newlineCheck"></span>
+            </div>
+            <div class="validation-row">
+                <span class="validation-label">反斜杠:</span>
+                <span class="validation-value" id="backslashCheck"></span>
+            </div>
+            <div class="validation-row">
+                <span class="validation-label">反引号:</span>
+                <span class="validation-value" id="backtickCheck"></span>
+            </div>
+            <div class="validation-row">
+                <span class="validation-label">连续空格:</span>
+                <span class="validation-value" id="spaceCheck"></span>
+            </div>
         </div>
     </div>
 
@@ -134,12 +229,54 @@
     <script>
         function convertToOneline() {
             const input = document.getElementById('input').value;
-            // 移除行尾的反斜杠 \ 和换行符，合并成一行
-            let result = input
-                .replace(/\\\s*\n/g, ' ')      // 处理 \ 换行
-                .replace(/\n\s*/g, ' ')         // 处理普通换行
-                .replace(/\s+/g, ' ')           // 多个空格合并为一个
-                .trim();
+            if (!input.trim()) {
+                showToast('请输入命令!');
+                return;
+            }
+
+            const originalLength = input.length;
+            const originalLines = input.split('\n').length;
+
+            // 移除行尾的反引号 ` 和换行符 (PowerShell)
+            let result = input.replace(/`\s*\n/g, ' ');
+            // 移除行尾的反斜杠 \ 和换行符 (bash)
+            result = result.replace(/\\\s*\n/g, ' ');
+            // 处理普通换行
+            result = result.replace(/\n\s*/g, ' ');
+            // 压缩多个空格为一个
+            const beforeSpaceCompress = result.length;
+            result = result.replace(/\s+/g, ' ').trim();
+
+            const finalLength = result.length;
+            const linesRemoved = originalLines - 1;
+            const spacesReduced = beforeSpaceCompress - finalLength;
+
+            // 显示统计
+            document.getElementById('linesRemoved').textContent = linesRemoved;
+            document.getElementById('spacesReduced').textContent = spacesReduced;
+            document.getElementById('originalLength').textContent = originalLength;
+            document.getElementById('finalLength').textContent = finalLength;
+            document.getElementById('stats').style.display = 'flex';
+
+            // 显示验证结果
+            const hasNewlines = result.includes('\n');
+            const hasBackslash = result.includes('\\');
+            const hasBacktick = result.includes('`');
+            const hasMultiSpace = /\s{2,}/.test(result);
+
+            document.getElementById('newlineCheck').textContent = !hasNewlines ? '✓ 已移除' : '✗ 仍有换行';
+            document.getElementById('newlineCheck').className = 'validation-value ' + (!hasNewlines ? 'success' : 'fail');
+
+            document.getElementById('backslashCheck').textContent = !hasBackslash ? '✓ 已移除' : '✗ 保留(可能需要)';
+            document.getElementById('backslashCheck').className = 'validation-value ' + (!hasBackslash ? 'success' : 'fail');
+
+            document.getElementById('backtickCheck').textContent = !hasBacktick ? '✓ 已移除' : '✗ 仍有反引号';
+            document.getElementById('backtickCheck').className = 'validation-value ' + (!hasBacktick ? 'success' : 'fail');
+
+            document.getElementById('spaceCheck').textContent = !hasMultiSpace ? '✓ 单空格' : '✗ 有连续空格';
+            document.getElementById('spaceCheck').className = 'validation-value ' + (!hasMultiSpace ? 'success' : 'fail');
+
+            document.getElementById('validation').style.display = 'block';
 
             document.getElementById('output').value = result;
             copyToClipboard(result);
@@ -169,6 +306,8 @@
         function clearAll() {
             document.getElementById('input').value = '';
             document.getElementById('output').value = '';
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('validation').style.display = 'none';
         }
     </script>
 </body>
