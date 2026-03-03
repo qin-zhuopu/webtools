@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>命令单行化工具</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+            width: 100%;
+            max-width: 800px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: "Monaco", "Menlo", "Consolas", monospace;
+            font-size: 13px;
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        #output {
+            background: #f5f5f5;
+            min-height: 100px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>命令单行化工具</h1>
+
+        <div class="input-group">
+            <label for="input">输入多行或截断的命令:</label>
+            <textarea id="input" placeholder="粘贴你的多行命令在这里..."></textarea>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-primary" onclick="convertToOneline()">One Line</button>
+            <button class="btn-secondary" onclick="clearAll()">清空</button>
+        </div>
+
+        <div class="input-group">
+            <label for="output">输出结果 (已复制到剪贴板):</label>
+            <textarea id="output" readonly placeholder="点击按钮后，结果会显示在这里并自动复制..."></textarea>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">已复制到剪贴板!</div>
+
+    <script>
+        function convertToOneline() {
+            const input = document.getElementById('input').value;
+            // 移除行尾的反斜杠 \ 和换行符，合并成一行
+            let result = input
+                .replace(/\\\s*\n/g, ' ')      // 处理 \ 换行
+                .replace(/\n\s*/g, ' ')         // 处理普通换行
+                .replace(/\s+/g, ' ')           // 多个空格合并为一个
+                .trim();
+
+            document.getElementById('output').value = result;
+            copyToClipboard(result);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('已复制到剪贴板!');
+            }).catch(() => {
+                // 降级方案
+                const textarea = document.getElementById('output');
+                textarea.select();
+                document.execCommand('copy');
+                showToast('已复制到剪贴板!');
+            });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2000);
+        }
+
+        function clearAll() {
+            document.getElementById('input').value = '';
+            document.getElementById('output').value = '';
+        }
+    </script>
+</body>
+</html>
